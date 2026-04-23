@@ -5,10 +5,12 @@ OS="$(uname -s)"
 echo ""
 
 if [ "$OS" = "Darwin" ]; then
-    echo "  detected macos!!"
+    echo "  detected macos!! remember to run this command as sudo!"
+    echo ""
     BIN_DIR="/usr/local/bin"
 elif [ "$OS" = "Linux" ]; then
-    echo "  detected linux!!"
+    echo "  detected linux!! remember to run this command as sudo!"
+    echo ""
     BIN_DIR="/usr/local/bin"
         if ! groups "$USER" | grep -qw dialout 2>/dev/null; then
         echo ""
@@ -50,11 +52,10 @@ echo "    ezserial / ezs | opens up the main tui!"
 echo "    ezs --baud 9600 | set a custom baud rate!"
 echo "    ezs --log session.txt | save the session to a log file!"
 echo "    ezs --list | list all serial ports without filtering for boards!"
-echo "    ezs --port {port_hint().split()[0]} | force a specific port!"
 if [ "$OS" = "Darwin" ]; then # shower thought why is mac called darwijn i never understood that t-t
-    echo "    ezserial --port /dev/cu.xxx  force a specific port"
+    echo "    ezserial --port /dev/cu.xxx | force a specific port"
 else
-    echo "    ezserial --port /dev/ttyUSB0  force a specific port"
+    echo "    ezserial --port /dev/ttyUSB0 | force a specific port"
 fi
 echo ""
 echo "  have fun! ^-^/"
