@@ -315,7 +315,7 @@ def no_board_message():
     print()
     print(bar("=", BRED))
     print(f"  {BRED}{BOLD}no board detected  {face(DISCO_FACES)}{R}")
-    print(bar("─", BGRAY))
+    print(bar("-", BGRAY))
     print(f"  {BGRAY}platform:{R}  {BWHITE}{platform_name()}{R}")
     print(f"  {BGRAY}port hint:{R} {BWHITE}{port_hint()}{R}")
     print(bar("═", BRED))
@@ -329,7 +329,7 @@ def print_header(port, info, baud, log_path=None):
     print(dbar(color))
     print(f"{color}{BOLD}  ezserial{R}  {BGRAY}//{R}  {color}{label}{R}  "
           f"{BGRAY}({chip})  [{R}{pcol}{pname}{R}{BGRAY}]{R}")
-    print(bar("─", BGRAY))
+    print(bar("-", BGRAY))
     rows = [
         ("PORT",  BWHITE  + port.device),
         ("BAUD",  BWHITE  + str(baud)),
@@ -344,7 +344,7 @@ def print_header(port, info, baud, log_path=None):
     print(color + f"  {f}  connected!  Ctrl+C to quit" + R)
     if not ON_MAC:
         print(f"  {BGRAY}tip: permission errors? run:  sudo usermod -aG dialout $USER{R}")
-    print(bar("─", BGRAY))
+    print(bar("-", BGRAY))
     print()
 
 HEX_RE = re.compile(r'\b(0x[0-9a-fA-F]+)\b')
@@ -442,7 +442,7 @@ def tui_picker(found):
         print(bar("=", BYELLOW))
         print(f"  {BYELLOW}{BOLD}multiple boards found  {face(MULTI_FACES)}{R}  "
               f"{BGRAY}arrow keys + enter{R}")
-        print(bar("─", BGRAY))
+        print(bar("-", BGRAY))
         for i, (p, (chip, label, color)) in enumerate(found):
             cursor = f"{BWHITE}>{R}" if i == idx else " "
             hi     = BOLD if i == idx else ""
@@ -500,6 +500,81 @@ def monitor(port, info, baud, log_path=None):
 
     def serial_to_screen(ser):
         buf = b""
+        try:
+            while not stop.is_set():
+                waiting = ser.in_waiting
+                chunk = ser.read(waiting if waiting > 0 else 1)
+                if not chunk:
+                    continue
+                buf += chunk
+                while b'\n' in buf:
+                    line, buf = buf.split(b'\n', 1)
+                    text = line.decode('utf-8', errors='replace').rstrip('\r')
+                    sys.stdout.write(f"{ts()}  {colorize(text)}\n")
+                    sys.stdout.flush()
+                    if log_file:
+                        t = datetime.datetime.now().strftime('%H:%M:%S')
+                        log_file.write(f"[{t}]  {text}\n")
+                        log_file.flush()
+        except serial.SerialException as e:
+            if not stop.is_set():
+                stop.set()
+                restore()
+                sys.stdout.write(f"\n{bar('═', BRED)}\n")
+                sys.stdout.write(f"  {BRED}{BOLD}disconnected  {face(DISCO_FACES)}{R}  {BGRAY}{e}{R}\n")
+                sys.stdout.write(f"{bar('═', BRED)}\n")
+                sys.stdout.flush()
+        except Exception:
+            stop.set()
+
+    def keyboard_to_serial(ser):
+        _set_raw_input(fd)
+        try:
+            while not stop.is_set():
+                r, r_, _ = select.select([sys.stdin], [], [], 0.05)
+                if not r:
+                    continue
+                data = os.read(fd, 64)
+                if not data:
+                    continue # EOF, probably Ctrl+D
+                if b'\x03' in data: # Ctrl+C
+                    stop.set()
+                    break
+                ser.write(data)
+        except Exception:
+            stop.set()
+        finally:
+            restore()
+    
+    try:
+        with serial.Serial(port.device, baud, timeout=0.1) as ser:
+            t1 = threading.Thread(target=serial_to_screen,   args=(ser,), daemon=True)
+            t2 = threading.Thread(target=keyboard_to_serial, args=(ser,), daemon=True)
+            t1.start()
+            t2.start()
+            stop.wait()
+            time.sleep(0.05)
+    except PermissionError as e:
+        print(f"\n{bar('═', BRED)}")
+        print(f"  {BRED}{BOLD}permission denied  x_x{R}  {BGRAY}{e}{R}")
+        print(f"  {BYELLOW}{perm_hint(port.device)}{R}")
+        print(bar("═", BRED))
+        return
+    except serial.SerialException as e:
+        print(f"\n{bar('═', BRED)}")
+        print(f"  {BRED}{BOLD}could not open port  {face(DISCO_FACES)}{R}  {BGRAY}{e}{R}")
+        print(bar("═", BRED))
+        return
+    finally:
+        restore()
+        if log_file:
+            log_file.write(f"\nEnded: {datetime.datetime.now().isoformat()}\n")
+            log_file.close()
+            print(f"\n  {BGREEN}log saved:{R}  {log_path}")
+
+    print(f"\n{bar('-', BGRAY)}")
+    print(f"  {BGRAY}session ended  {face(BYE_FACES)}{R}")
+    print(bar("-", BGRAY))
 
 def main():
     print("placeholder")
