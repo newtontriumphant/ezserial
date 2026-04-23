@@ -8,6 +8,8 @@ ezs (ezserial) is a simple program that runs natively in your terminal and funct
 
 No more listing `/dev/tty` ports or figuring out which `usbmodem` your AliExpress USB-C cable is connected to!
 
+If you'd rather watch a video demo than read this whole boring blob, [here ya go](https://youtu.be/DUAF1HSYH8M)!!
+
 ezs automatically detects which serial port your MCU is connected to, automatically detects which type of MCU it is, and automatically color-codes serial lines!
 
 Additionally, ezs supports outputting full session logs to txt files, and has soo many more hidden features! you can list all port devices with `ezs --list`, and listen to a specific baud or port with `ezs --baud [baud]` and `ezs --port [port]`, respectively!!
