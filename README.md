@@ -1,8 +1,10 @@
 # ezserial / ezs!
 
+![ezs](image.png)
+
 ## What is ezs?!
 
-ezs (ez serial) is a simple program that runs natively in your terminal and functions as a serial monitor for ANY MCU board, on ANY flavor of Linux AND macOS!
+ezs (ezserial) is a simple program that runs natively in your terminal and functions as a serial monitor for ANY MCU board, on ANY flavor of Linux AND macOS!
 
 No more listing `/dev/tty` ports or figuring out which `usbmodem` your AliExpress USB-C cable is connected to!
 
