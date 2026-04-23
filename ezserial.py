@@ -318,7 +318,7 @@ def no_board_message():
     print(bar("-", BGRAY))
     print(f"  {BGRAY}platform:{R}  {BWHITE}{platform_name()}{R}")
     print(f"  {BGRAY}port hint:{R} {BWHITE}{port_hint()}{R}")
-    print(bar("═", BRED))
+    print(bar("=", BRED))
     print()
 
 def print_header(port, info, baud, log_path=None):
@@ -520,9 +520,9 @@ def monitor(port, info, baud, log_path=None):
             if not stop.is_set():
                 stop.set()
                 restore()
-                sys.stdout.write(f"\n{bar('═', BRED)}\n")
+                sys.stdout.write(f"\n{bar('=', BRED)}\n")
                 sys.stdout.write(f"  {BRED}{BOLD}disconnected  {face(DISCO_FACES)}{R}  {BGRAY}{e}{R}\n")
-                sys.stdout.write(f"{bar('═', BRED)}\n")
+                sys.stdout.write(f"{bar('=', BRED)}\n")
                 sys.stdout.flush()
         except Exception:
             stop.set()
@@ -531,7 +531,7 @@ def monitor(port, info, baud, log_path=None):
         _set_raw_input(fd)
         try:
             while not stop.is_set():
-                r, r_, _ = select.select([sys.stdin], [], [], 0.05)
+                r, _, _ = select.select([sys.stdin], [], [], 0.05)
                 if not r:
                     continue
                 data = os.read(fd, 64)
@@ -555,15 +555,15 @@ def monitor(port, info, baud, log_path=None):
             stop.wait()
             time.sleep(0.05)
     except PermissionError as e:
-        print(f"\n{bar('═', BRED)}")
+        print(f"\n{bar('=', BRED)}")
         print(f"  {BRED}{BOLD}permission denied  x_x{R}  {BGRAY}{e}{R}")
         print(f"  {BYELLOW}{perm_hint(port.device)}{R}")
-        print(bar("═", BRED))
+        print(bar("=", BRED))
         return
     except serial.SerialException as e:
-        print(f"\n{bar('═', BRED)}")
+        print(f"\n{bar('=', BRED)}")
         print(f"  {BRED}{BOLD}could not open port  {face(DISCO_FACES)}{R}  {BGRAY}{e}{R}")
-        print(bar("═", BRED))
+        print(bar("=", BRED))
         return
     finally:
         restore()
@@ -577,7 +577,83 @@ def monitor(port, info, baud, log_path=None):
     print(bar("-", BGRAY))
 
 def main():
-    print("placeholder")
+    parser = argparse.ArgumentParser(
+        prog="ezserial",
+        description="ezserial / ezs - universal serial monitor for all mcus ^y^",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""
+aliases:  ezserial  ezs
+platform: {platform_name()}
+
+examples:
+  ezs | opens up the main tui!
+  ezs --baud 9600 | set a custom baud rate!
+  ezs --log session.txt | save the session to a log file!
+  ezs --list | list all serial ports without filtering for boards!
+  ezs --port {port_hint().split()[0]} | force a specific port!
+"""
+    )
+    parser.add_argument("--baud", "-b", type=int, default=115200)
+    parser.add_argument("--log", "-l", type=str, default=None)
+    parser.add_argument("--port", "-p", type=str, default=None)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--no-splash", action="store_true")
+    args = parser.parse_args()
+
+    if not args.no_splash:
+        splash()
+
+    if args.port: # user wishes to force a specific port
+        all_p = {p.device: p for p in list_ports.comports()}
+        if args.port not in all_p:
+            print(f"  {BRED}port '{args.port}' not found  :c{R}")
+            avail = list(all_p.keys())
+            if avail:
+                print(f"  {BGRAY}available: {', '.join(avail)}{R}")
+            else:
+                print(f"  {BGRAY}no serial ports found!{R}")
+            print()
+            sys.exit(1)
+        p = all_p[args.port]
+        info = identify_port(p) or ("Unknown", args.port, WHITE)
+        monitor(p, info, args.baud, args.log)
+        return
+    
+    if args.list: # user wishes to see all serial ports w/o picking one
+        found = scan_ports()
+        all_raw = all_serial_ports()
+        unknown = [p for p in all_raw if not identify_port(p)]
+        print(bar("=", BCYAN))
+        print(f"  {BCYAN}{BOLD}board scan{R}  {BGRAY}//  {platform_name()}{R}")
+        print(bar("-", BGRAY))
+        if found:
+            print(f"  {BGREEN}known boards:{R}")
+            for p, (chip, label, color) in found:
+                vid = f"{p.vid:04X}:{p.pid:04X}" if p.vid else "n/a"
+                print(f"    {color}{BOLD}{label:<36}{R}  {BWHITE}{p.device:<30}{R}  {BGRAY}{vid}{R}")
+        if unknown:
+            print(f"\n  {BGRAY}unrecognized (try --port):{R}")
+            for p in unknown:
+                vid = f"{p.vid:04X}:{p.pid:04X}" if p.vid else "????:????"
+                print(f"    {BGRAY}{p.device:<30}  {vid}  {p.description}{R}")
+        if not found and not all_raw:
+            print(f"  {BGRAY}nothing connected  {face(DISCO_FACES)}{R}")
+        print(bar("═", BCYAN))
+        print()
+        return
+    
+    found = scan_ports()
+    if not found:
+        no_board_message()
+        found = wait_for_board()
+
+    if len(found) == 1:
+        port, info = found[0]
+        monitor(port, info, args.baud, args.log)
+        return
+    
+    port, info = tui_picker(found)
+    monitor(port, info, args.baud, args.log) # output waiting loop
 
 if __name__ == "__main__":
     main()
