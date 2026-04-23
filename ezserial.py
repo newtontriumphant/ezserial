@@ -281,11 +281,11 @@ class RawInput:
             return self.OTHER
         return self.OTHER
     
-CONNECT_FACES = []
-WAIT_FACES = []
-DISCO_FACES = []
-BYE_FACES = []
-MULTI_FACES = []
+CONNECT_FACES = ["^w^", "^.^", ":D", "uwu", "^-^", ">w<", "^v^", "=^.^="]
+WAIT_FACES = ["-w-", "o_o", "._.", "=w=", "*..*", "-.-", "zZz", "u_u"]
+DISCO_FACES = [":c", ";-;", "T_T", "o_O", ">.>", "x_x", ">_<"]
+BYE_FACES = ["o/", "bye!!", "^-^/", "see ya!", ":>", "~o~"]
+MULTI_FACES = [":o", "o_O", "O.O", "woa", "!!", "owo"]
 
 LOGO = [
     "  ███████╗███████╗███████╗",
@@ -310,3 +310,199 @@ def splash():
     print(center(f"{pcol}running on {pname}{R}"))
     print(dbar(BGREEN))
     print()
+
+def no_board_message():
+    print()
+    print(bar("=", BRED))
+    print(f"  {BRED}{BOLD}no board detected  {face(DISCO_FACES)}{R}")
+    print(bar("─", BGRAY))
+    print(f"  {BGRAY}platform:{R}  {BWHITE}{platform_name()}{R}")
+    print(f"  {BGRAY}port hint:{R} {BWHITE}{port_hint()}{R}")
+    print(bar("═", BRED))
+    print()
+
+def print_header(port, info, baud, log_path=None):
+    chip, label, color = info
+    pcol = BCYAN if ON_MAC else BGREEN
+    pname = platform_name()
+    print()
+    print(dbar(color))
+    print(f"{color}{BOLD}  ezserial{R}  {BGRAY}//{R}  {color}{label}{R}  "
+          f"{BGRAY}({chip})  [{R}{pcol}{pname}{R}{BGRAY}]{R}")
+    print(bar("─", BGRAY))
+    rows = [
+        ("PORT",  BWHITE  + port.device),
+        ("BAUD",  BWHITE  + str(baud)),
+        ("ID",    BGRAY   + (f"{port.vid:04X}:{port.pid:04X}" if port.vid else "n/a")),
+    ]
+    if log_path:
+        rows.append(("LOG", BGREEN + log_path))
+    for key, val in rows:
+        print(f"  {BGRAY}{key:<6}{R}  {val}{R}")
+    print(dbar(color))
+    f = face(CONNECT_FACES)
+    print(color + f"  {f}  connected!  Ctrl+C to quit" + R)
+    if not ON_MAC:
+        print(f"  {BGRAY}tip: permission errors? run:  sudo usermod -aG dialout $USER{R}")
+    print(bar("─", BGRAY))
+    print()
+
+HEX_RE = re.compile(r'\b(0x[0-9a-fA-F]+)\b')
+FLOAT_RE = re.compile(r'(?<!\w)(\d+\.\d+)(?!\w)')
+INT_RE = re.compile(r'(?<!\w)(\d{4,})(?!\w)')
+
+# parsed by AI, written by me
+
+_BRACKET_LEVELS = [
+    (re.compile(r'\[\s*(CRIT(?:ICAL)?|FATAL|PANIC|ABORT|HARDFAULT|EMERG(?:ENCY)?)\s*\]', re.IGNORECASE), BRED + BOLD),
+    (re.compile(r'\[\s*(ERR(?:OR)?|FAIL(?:ED|URE)?|ASSERT(?:ION)?|EXCEPTION|BUG)\s*\]',  re.IGNORECASE), BRED),
+    (re.compile(r'\[\s*(WARN(?:ING)?|CAUTION)\s*\]',                                      re.IGNORECASE), BYELLOW),
+    (re.compile(r'\[\s*(NOTICE|NOTE|HINT|TIP)\s*\]',                                      re.IGNORECASE), BMAGENTA),
+    (re.compile(r'\[\s*(INFO(?:RMATION)?|STATUS)\s*\]',                                   re.IGNORECASE), BCYAN),
+    (re.compile(r'\[\s*(OK|OKAY|PASS(?:ED)?|SUCCESS|GOOD|DONE|READY)\s*\]',               re.IGNORECASE), BGREEN),
+    (re.compile(r'\[\s*(DEBUG|DBG|VERBOSE|VERB)\s*\]',                                    re.IGNORECASE), BGRAY),
+    (re.compile(r'\[\s*(TRACE|VRB)\s*\]',                                                 re.IGNORECASE), DIM + BGRAY),
+]
+
+_BARE_LEVELS = [
+    (re.compile(r'\b(CRITICAL|CRIT|FATAL|PANIC|ABORT|HARDFAULT)\b',             re.IGNORECASE), BRED + BOLD),
+    (re.compile(r'\b(ERROR|ERR:|EXCEPTION|ASSERTION FAILED|HARD FAULT)\b',      re.IGNORECASE), BRED),
+    (re.compile(r'\b(WARNING|WARN:)\b',                                          re.IGNORECASE), BYELLOW),
+    (re.compile(r'\b(NOTICE:|NOTE:)\b',                                          re.IGNORECASE), BMAGENTA),
+    (re.compile(r'\b(\[INFO\]|INFO:|STATUS:)\b',                                 re.IGNORECASE), BCYAN),
+    (re.compile(r'\b(\[OK\]|READY|DONE|SUCCESS)\b',                              re.IGNORECASE), BGREEN),
+    (re.compile(r'\b(DEBUG:|DBG:)\b',                                            re.IGNORECASE), BGRAY),
+]
+
+_RUNTIME_PATTERNS = [
+    (re.compile(r'(soft reboot|hard reboot|rebooting)',                          re.IGNORECASE), BBLUE),
+    (re.compile(r'(press any key|enter the repl|ctrl-d|ctrl\+d)',                re.IGNORECASE), BCYAN + DIM),
+    (re.compile(r'(traceback \(most recent call last\)|^\s+File ")',             re.IGNORECASE), BRED),
+    (re.compile(r'(MemoryError|OverflowError|ValueError|TypeError|OSError|'
+                r'RuntimeError|AttributeError|ImportError|SyntaxError)',         re.IGNORECASE), BRED),
+]
+
+def colorize(line):
+    s = line.rstrip("\r\n")
+    if not s:
+        return s
+    
+    for pat, color in _BRACKET_LEVELS:
+        if pat.search(s):
+            return color + s + R
+
+    for pat, color in _RUNTIME_PATTERNS:
+        if pat.search(s):
+            return color + s + R
+
+    for pat, color in _BARE_LEVELS:
+        if pat.search(s):
+            return color + s + R
+
+    r = HEX_RE.sub(lambda m: BCYAN + m.group(0) + R, s)
+    r = FLOAT_RE.sub(lambda m: BBLUE + m.group(0) + R, r)
+    r = INT_RE.sub(lambda m: WHITE + m.group(0) + R, r)
+    return r
+
+WAIT_FRAMES = [" [    ]"," [=   ]"," [==  ]"," [=== ]"," [====]"," [ ===]"," [  ==]"," [   =]"]
+
+def wait_for_board():
+    f_label = face(WAIT_FACES)
+    i = 0
+    found = []
+    try:
+        while not found:
+            frame = WAIT_FRAMES[i % len(WAIT_FRAMES)]
+            sys.stdout.write(
+                f"{CLR_LINE}  {BCYAN}{frame}{R}  "
+                f"{BGRAY}waiting for a board{R}  "
+                f"{BGRAY}{f_label}{R}"
+            )
+            sys.stdout.flush()
+            time.sleep(0.12)
+            i += 1
+            if i % 4 == 0:
+                found = scan_ports()
+    except KeyboardInterrupt:
+        sys.stdout.write(f"{CLR_LINE}")
+        sys.stdout.flush()
+        print(f"  {BGRAY}cancelled {face(BYE_FACES)}{R}\n")
+        sys.exit(0)
+    sys.stdout.write(f"{CLR_LINE}")
+    sys.stdout.flush()
+    return found
+
+def tui_picker(found):
+    idx = 0
+    n = len(found)
+
+    def draw(idx, first=False):
+        if not first:
+            sys.stdout.write(f"\033[{n + 3}A")
+        print(bar("=", BYELLOW))
+        print(f"  {BYELLOW}{BOLD}multiple boards found  {face(MULTI_FACES)}{R}  "
+              f"{BGRAY}arrow keys + enter{R}")
+        print(bar("─", BGRAY))
+        for i, (p, (chip, label, color)) in enumerate(found):
+            cursor = f"{BWHITE}>{R}" if i == idx else " "
+            hi     = BOLD if i == idx else ""
+            print(f"  {cursor} {color}{hi}{label:<36}{R}  {BWHITE}{p.device}{R}")
+        print(bar("═", BYELLOW))
+
+    draw(idx, first=True)
+    with RawInput() as ri:
+        while True:
+            key = ri.read()
+            if key == RawInput.CTRL_C:
+                print(f"\n  {BGRAY}cancelled  {face(BYE_FACES)}{R}\n")
+                sys.exit(0)
+            elif key == RawInput.UP:
+                idx = (idx - 1) % n
+                draw(idx)
+            elif key == RawInput.DOWN:
+                idx = (idx + 1) % n
+                draw(idx)
+            elif key == RawInput.ENTER:
+                print()
+                return found[idx]
+
+def _set_raw_input(fd):
+    mode = list(termios.tcgetattr(fd))
+    mode[0] &= ~(termios.BRKINT | termios.ICRNL | termios.INPCK |
+                 termios.ISTRIP | termios.IXON)
+    mode[2]  = (mode[2] & ~termios.CSIZE) | termios.CS8
+    mode[3] &= ~(termios.ECHO | termios.ICANON | termios.IEXTEN | termios.ISIG)
+    mode[6][termios.VMIN]  = 0
+    mode[6][termios.VTIME] = 0
+    termios.tcsetattr(fd, termios.TCSADRAIN, mode)
+
+def monitor(port, info, baud, log_path=None):
+    print_header(port, info, baud, log_path)
+
+    log_file = None
+    if log_path:
+        log_file = open(log_path, "a", encoding="utf-8")
+        log_file.write(f"\n{'='*60}\n")
+        log_file.write(f"ezserial session: {datetime.datetime.now().isoformat()}\n")
+        log_file.write(f"Board: {info[1]} ({info[0]}) | Port: {port.device} | Baud: {baud}\n")
+        log_file.write(f"OS: {platform_name()}\n")
+        log_file.write(f"{'='*60}\n")
+
+    stop  = threading.Event()
+    fd    = sys.stdin.fileno()
+    saved = termios.tcgetattr(fd)
+
+    def restore():
+        try:
+            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+        except Exception:
+            pass
+
+    def serial_to_screen(ser):
+        buf = b""
+
+def main():
+    print("placeholder")
+
+if __name__ == "__main__":
+    main()
